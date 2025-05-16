@@ -5,19 +5,19 @@ local M = {
   setup_done = false,
 }
 
-local function accept_suggestion(keys)
+function M.accept_suggestion(passthru_keys)
   return function()
     if not completion.suggestion then
-      return vim.api.nvim_replace_termcodes(keys, true, true, true)
+      return vim.api.nvim_replace_termcodes(passthru_keys, true, true, true)
     end
     vim.schedule(completion.complete)
   end
 end
 
-local function dismiss_suggestion(keys)
+function M.dismiss_suggestion(passthru_keys)
   return function()
     if not completion.suggestion then
-      return vim.api.nvim_replace_termcodes(keys, true, true, true)
+      return vim.api.nvim_replace_termcodes(passthru_keys, true, true, true)
     end
     vim.schedule(function()
       completion.cancel()
@@ -31,17 +31,37 @@ function M.setup()
     return
   end
 
-  local accept_keymap = config.get().accept_keymap
-  local dismiss_keymap = config.get().dismiss_keymap
+  -- Legacy field fallback
+  if config.get().accept_keymap ~= nil then
+    vim.notify("Using legacy keymap field. Use kemap.accept instead of accept_keymap", vim.log.levels.WARN)
+    config.get().keymap.accept = config.get().accept_keymap
+  end
+  if config.get().dismiss_keymap ~= nil then
+    vim.notify("Using legacy keymap field. Use kemap.dismiss instead of dismiss_keymap", vim.log.levels.WARN)
+    config.get().keymap.dismiss = config.get().dismiss_keymap
+  end
 
-  local accept_func = accept_suggestion(accept_keymap)
-  local dismiss_func = dismiss_suggestion(dismiss_keymap)
+  local modes = config.get().keymap.modes
 
-  vim.keymap.set("i", accept_keymap, accept_func, { expr = true })
-  vim.keymap.set("n", accept_keymap, accept_func, { expr = true })
+  local accept_keymap = config.get().keymap.accept
+  local dismiss_keymap = config.get().keymap.dismiss
 
-  vim.keymap.set("i", dismiss_keymap, dismiss_func, { expr = true })
-  vim.keymap.set("n", dismiss_keymap, dismiss_func, { expr = true })
+  if modes ~= nil and accept_keymap ~= nil then
+    vim.keymap.set(
+      modes,
+      accept_keymap,
+      M.accept_suggestion(accept_keymap),
+      { desc = "Accept llm completion", expr = true, noremap = true }
+    )
+  end
+  if modes ~= nil and dismiss_keymap ~= nil then
+    vim.keymap.set(
+      modes,
+      dismiss_keymap,
+      M.dismiss_suggestion(dismiss_keymap),
+      { desc = "Dismiss llm completion", expr = true, noremap = true }
+    )
+  end
 
   M.setup_done = true
 end
